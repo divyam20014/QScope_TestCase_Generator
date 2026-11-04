@@ -1,0 +1,13 @@
+[
+  {
+    "chunk_id": 0,
+    "project_id": "89016f18-76d6-4558-9e06-7062b9be389c",
+    "document_id": "bc089484-81a0-4beb-8032-e24a6c1fc511",
+    "document_name": "sample_req.txt",
+    "page": null,
+    "sheet": null,
+    "section": null,
+    "text": "REQ-1: The system shall allow a registered user to reset their password by entering their email address and clicking a reset link sent to that email. The reset link shall expire after 30 minutes.\nREQ-2: The system shall lock a user account for 15 minutes after 5 consecutive failed login attempts.",
+    "requirement_id": null
+  }
+]

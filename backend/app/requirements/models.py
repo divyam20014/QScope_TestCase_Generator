@@ -5,6 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.ai.schema import GeminiSchemaModel
 from app.core.models import utcnow
 
 
@@ -75,5 +76,5 @@ class ExtractedRequirementLLM(BaseModel):
     rationale: str | None = None
 
 
-class ExtractionBatchLLM(BaseModel):
+class ExtractionBatchLLM(GeminiSchemaModel):
     requirements: list[ExtractedRequirementLLM] = Field(default_factory=list)

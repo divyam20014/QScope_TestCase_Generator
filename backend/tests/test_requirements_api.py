@@ -28,7 +28,7 @@ def test_extract_document_requires_existing_project(client):
 def test_extract_without_gemini_configured_returns_400(client, monkeypatch):
     from app.core.config import get_settings
 
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
     get_settings.cache_clear()
 
     project = _create_project(client)

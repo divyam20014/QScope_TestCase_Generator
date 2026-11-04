@@ -13,7 +13,7 @@ import itertools
 import uuid
 
 from app.ai import service as ai_service
-from app.ai.exceptions import GeminiQuotaExceededError
+from app.ai.exceptions import AIProviderQuotaExceededError
 from app.core.models import utcnow
 from app.core.paths import generation_jobs_file, test_cases_file, version_history_file
 from app.generator import context as context_module
@@ -330,7 +330,7 @@ def run_job(project_id: str, job_id: str) -> GenerationJob:
         batch = job.batches[index]
         try:
             new_cases = _run_batch(project_id, job, batch, requirements_by_id, tc_allocator, sc_allocator)
-        except GeminiQuotaExceededError as exc:
+        except AIProviderQuotaExceededError as exc:
             job.status = JobStatus.PAUSED
             job.error = str(exc)
             job.retry_after_seconds = exc.retry_after_seconds

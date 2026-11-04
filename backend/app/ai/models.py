@@ -9,6 +9,7 @@ from app.core.models import utcnow
 
 class ModelCapability(BaseModel):
     model_id: str
+    provider: str  # "gemini" | "openai" | "anthropic"
     display_name: str
     description: str = ""
     supports_structured_output: bool = True

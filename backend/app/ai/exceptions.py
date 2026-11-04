@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 
-class GeminiError(Exception):
-    """Base class for all Gemini-related failures."""
+class AIProviderError(Exception):
+    """Base class for all AI-provider failures, regardless of which provider
+    (Gemini, OpenAI, Anthropic) raised it."""
 
 
-class GeminiNotConfiguredError(GeminiError):
-    """No GEMINI_API_KEY is set in the environment/.env."""
+class AIProviderNotConfiguredError(AIProviderError):
+    """The active provider's API key is not set in the environment/.env."""
 
 
-class GeminiQuotaExceededError(GeminiError):
+class AIProviderQuotaExceededError(AIProviderError):
     """Rate limit/quota (HTTP 429) exceeded after exhausting retries."""
 
     def __init__(self, message: str, retry_after_seconds: float | None = None) -> None:
@@ -17,8 +18,8 @@ class GeminiQuotaExceededError(GeminiError):
         self.retry_after_seconds = retry_after_seconds
 
 
-class GeminiRequestError(GeminiError):
-    """Any other non-recoverable Gemini API error."""
+class AIProviderRequestError(AIProviderError):
+    """Any other non-recoverable error from the active provider's API."""
 
     def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)

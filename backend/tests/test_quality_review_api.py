@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 
-from app.ai.exceptions import GeminiNotConfiguredError
+from app.ai.exceptions import AIProviderNotConfiguredError
 from app.generator.models import GeneratedTestBatchLLM, GeneratedTestCaseLLM, Priority
 from app.requirements.models import ClassificationState, ExtractedRequirementLLM, ExtractionBatchLLM, RequirementType
 from app.validators.models import QualityIssueLLM, QualityReviewBatchLLM
@@ -58,7 +58,7 @@ def test_quality_review_without_gemini_configured_returns_400(client, monkeypatc
     _upload_extract_and_generate(client, monkeypatch, project["id"])
 
     def raise_not_configured(**kwargs):
-        raise GeminiNotConfiguredError("GEMINI_API_KEY is not set - add it to .env")
+        raise AIProviderNotConfiguredError("GEMINI_API_KEY is not set - add it to .env")
 
     # `app.ai.service` is a single shared module - every `from app.ai import
     # service as ai_service` alias (requirements/generator/quality_review)

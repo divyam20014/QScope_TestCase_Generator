@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.ai.exceptions import GeminiNotConfiguredError, GeminiQuotaExceededError, GeminiRequestError
+from app.ai.exceptions import AIProviderNotConfiguredError, AIProviderQuotaExceededError, AIProviderRequestError
 from app.core import project_service
 from app.core.project_service import ProjectNotFoundError
 from app.validators import service as validators_service
@@ -29,13 +29,13 @@ def run_review(project_id: str, body: RunReviewRequest = RunReviewRequest()) -> 
     _ensure_project_exists(project_id)
     try:
         return validators_service.run_quality_review(project_id, requirement_id=body.requirement_id, model=body.model)
-    except GeminiNotConfiguredError as exc:
+    except AIProviderNotConfiguredError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except GeminiQuotaExceededError as exc:
+    except AIProviderQuotaExceededError as exc:
         raise HTTPException(
             status_code=429, detail={"message": str(exc), "retry_after_seconds": exc.retry_after_seconds}
         ) from exc
-    except GeminiRequestError as exc:
+    except AIProviderRequestError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 

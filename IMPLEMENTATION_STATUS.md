@@ -182,10 +182,92 @@ layer at scale) through every read-heavy endpoint. Findings:
   is type-check + lint + build + manual HTTP-level checks through the real
   Vite proxy, consistent with every phase since Phase 1.
 
+## Post-completion: frontend wiring, a real-key bug fix, and multi-provider support (2026-11-04)
+
+After all 10 phases were marked complete, the user pointed out that most nav
+items still showed Phase 1's placeholder pages despite Phases 4-7/9's
+backend being fully built - that frontend wiring had been skipped. This
+triggered three further rounds of work:
+
+1. **Built the 5 missing frontend pages**: AI Configuration, Requirement
+   Analysis, Test Case Generator, Coverage Analysis (tabbed: coverage/
+   traceability/duplicates/quality-review), and Reports. Every nav item is
+   now a real page backed by the APIs built in Phases 4-7/9, not a
+   placeholder. `npx tsc -b` / `npm run lint` / `npm run build` all clean.
+
+2. **Found and fixed a real, previously-undetected bug using the user's own
+   real Gemini API key** - the thing every prior phase's docs flagged as
+   impossible to verify without one. The first live extraction call failed
+   with a `pydantic.ValidationError` deep inside the `google-genai` SDK:
+   `t_schema` builds Gemini's request schema by calling a Pydantic class's
+   `model_json_schema()` directly and never resolves `$ref`/`$defs` - so
+   every one of this app's structured-output schemas (all three are
+   "container holding `list[NestedModel]`") was broken against the real
+   API, despite 160+ passing tests, because no test had ever exercised the
+   real SDK's schema-conversion path (by design - Gemini is mocked in
+   automated tests). Root-caused by reading the installed SDK's own source
+   (`google/genai/_transformers.py`), not guessed. Fixed with
+   `app/ai/schema.py`'s `GeminiSchemaModel` base class, which inlines
+   `$ref`s and converts Pydantic's `anyOf: [...,{"type":"null"}]` nullable
+   form into Gemini's `nullable: true` flag. Verified fixed by re-running
+   the same live call and watching the error change (and eventually
+   disappear) - not just that the code compiled.
+3. Also hit, and correctly diagnosed rather than papering over, a second issue: `gemini-2.0-
+   flash` (the model this whole project was built against) has been
+   retired by Google - the live API's own error named the replacement
+   (`gemini-3.8-flash`), confirming how far real-world model lineups had
+   moved since this registry was written. Updated the default and the
+   one confirmed-working registry entry to match; deliberately removed the
+   other three stale 1.x/2.x entries rather than guessing at unverified
+   replacement names for them.
+4. **Added OpenAI and Anthropic as additional providers**, at the user's
+   request, turning the previously-aspirational "single `AIProvider`
+   interface" (ARCHITECTURE.md section 9) into a real one: `app/ai/
+   provider.py` (the `Protocol`), `app/ai/openai_client.py` (Responses API,
+   `.parse(text_format=...)`), `app/ai/anthropic_client.py` (Messages API,
+   `.parse(output_format=...)`). Both verified against the actually-
+   installed SDK versions (`openai==3.45.0`, `anthropic==2.4.0`) by
+   inspecting real method signatures/exception constructors directly -
+   same rigor as the Gemini fix, not assumed from training-data knowledge
+   of older SDK versions. `app/ai/model_registry.py` now tags every model
+   with its provider; `app/ai/service.py` routes to the right client and
+   caches one instance per provider. The old `Gemini*Error` exception names
+   were renamed to provider-generic `AIProvider*Error` across the codebase
+   (client, routers, services, tests) since they're no longer Gemini-
+   specific. 18 new tests (`test_openai_client.py`, `test_anthropic_client.py`,
+   `test_ai_service_routing.py`) using the **real** SDK exception classes
+   (constructed via real `httpx2.Response` objects) rather than faked stand-
+   ins - 178/178 passing.
+5. **Fixed a latent test-isolation bug this surfaced**: `Settings.model_config`
+   hardcodes `env_file=<repo root>/.env`, so once a real `.env` with a real
+   key existed (added this session so the user could test live), several
+   tests that used `monkeypatch.delenv("GEMINI_API_KEY")` silently started
+   reading the *real* key back out of the `.env` file, because `delenv`
+   only removes an `os.environ` override - it doesn't hide a value that
+   exists in the lower-priority dotenv file pydantic-settings also reads.
+   Fixed by changing those tests (and the shared `client` fixture) to
+   `monkeypatch.setenv(..., "")` instead, which always wins. This was a
+   real gap in a file previously untested - it was invisible for the
+   entire project history because no `.env` file existed in this
+   environment until this session.
+
+**Not yet live-verified**: the OpenAI model id (`gpt-5-mini`) and the entire
+Anthropic client are unverified against a real key in this environment - no
+Anthropic key was available, and the live Gemini check's free-tier quota and
+a `503 UNAVAILABLE` ("high demand") response from Google interrupted
+verifying a full real Gemini generation end-to-end before the user asked to
+pause that and build multi-provider support instead. Both model ids are
+flagged as unverified directly in the registry's `description` field so
+this is visible in the AI Configuration UI, not just in this file.
+
 ## Next step
-All 10 planned phases are complete. Nothing has been committed to git by
-this session - review the working tree and commit when ready. The most
-valuable next action for the project itself is a real-key smoke test of
-extraction/generation/quality-review against a real document, since that's
-the one thing no amount of automated testing in this environment could
-verify.
+The user has an OpenAI key to add manually and intends to verify Gemini
+further later. Recommended next actions, in order: (1) add
+`OPENAI_API_KEY`/`ANTHROPIC_API_KEY` to `.env` as available and use
+**Test Connection** in AI Configuration to confirm each model id still
+exists - correct `app/ai/model_registry.py` if not, the same way the Gemini
+entry was just corrected; (2) retry a real Gemini extraction/generation run
+now that the schema bug is fixed, to finally get a live read on *generation
+quality* (not just plumbing), which no amount of automated testing in this
+environment can substitute for. Nothing has been committed to git by this
+session - review the working tree and commit when ready.

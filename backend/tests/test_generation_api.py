@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 
-from app.ai.exceptions import GeminiQuotaExceededError
+from app.ai.exceptions import AIProviderQuotaExceededError
 from app.generator.models import GeneratedTestBatchLLM, GeneratedTestCaseLLM, Priority
 from app.requirements.models import ClassificationState, ExtractedRequirementLLM, ExtractionBatchLLM, RequirementType
 
@@ -114,7 +114,7 @@ def test_job_pauses_on_quota_exceeded_and_resumes(client, monkeypatch):
 
     def flaky(**kwargs):
         if state["should_fail"]:
-            raise GeminiQuotaExceededError("quota exceeded", retry_after_seconds=12.5)
+            raise AIProviderQuotaExceededError("quota exceeded", retry_after_seconds=12.5)
         return _fixed_batch(1)
 
     monkeypatch.setattr("app.generator.service.ai_service.generate_json", flaky)
@@ -193,7 +193,7 @@ def test_cancel_job(client, monkeypatch):
     _upload_and_extract(client, monkeypatch, project["id"])
 
     def always_quota(**kwargs):
-        raise GeminiQuotaExceededError("quota exceeded")
+        raise AIProviderQuotaExceededError("quota exceeded")
 
     monkeypatch.setattr("app.generator.service.ai_service.generate_json", always_quota)
 

@@ -1,0 +1,2 @@
+REQ-1: The system shall allow a registered user to reset their password by entering their email address and clicking a reset link sent to that email. The reset link shall expire after 30 minutes.
+REQ-2: The system shall lock a user account for 15 minutes after 5 consecutive failed login attempts.

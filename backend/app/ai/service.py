@@ -1,10 +1,14 @@
-"""Glue between the Gemini client, the model registry, and local persistence.
+"""Glue between the AI provider clients, the model registry, and local
+persistence.
 
-The API key itself is never read or written here beyond checking whether
-`get_settings().gemini_api_key` is set - it lives in `.env` only, per
-ARCHITECTURE.md. `ai.json` stores non-secret preferences (selected model,
-generation params); `ai_usage.json` stores cumulative token usage so the UI
-can show consumption against the free-tier quota.
+No provider's API key is ever read or written here beyond checking whether
+it's set - each lives in `.env` only, per ARCHITECTURE.md. `ai.json` stores
+non-secret preferences (selected model, generation params); `ai_usage.json`
+stores cumulative token usage per model. Routing to the correct provider
+client happens here, based on each model's `provider` tag in
+`app.ai.model_registry` - callers (`app/requirements`, `app/generator`,
+`app/validators`) only ever call `generate_json`/`test_connection` on this
+module, never a concrete client.
 """
 
 from __future__ import annotations
@@ -14,29 +18,47 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from app.ai import model_registry
-from app.ai.client import GeminiClient
 from app.ai.models import AIConfig, AIConfigUpdate, ConnectionTestResult, ModelCapability, UsageRecord, UsageStats
+from app.ai.provider import AIProvider
 from app.core.models import utcnow
 from app.core.paths import ai_config_file, ai_usage_file
 from app.storage.json_store import read_json, write_json
 
 T = TypeVar("T", bound=BaseModel)
 
-_client: GeminiClient | None = None
+_clients: dict[str, AIProvider] = {}
 
 
-def get_client() -> GeminiClient:
-    global _client
-    if _client is None:
-        _client = GeminiClient()
-    return _client
+def _build_client(provider: str) -> AIProvider:
+    if provider == "gemini":
+        from app.ai.client import GeminiClient
+
+        return GeminiClient()
+    if provider == "openai":
+        from app.ai.openai_client import OpenAIClient
+
+        return OpenAIClient()
+    if provider == "anthropic":
+        from app.ai.anthropic_client import AnthropicClient
+
+        return AnthropicClient()
+    raise ValueError(f"Unknown AI provider '{provider}'")
+
+
+def get_client_for_model(model_id: str) -> AIProvider:
+    provider = model_registry.get_provider(model_id)
+    if provider is None:
+        raise ValueError(f"Unknown model '{model_id}'")
+    if provider not in _clients:
+        _clients[provider] = _build_client(provider)
+    return _clients[provider]
 
 
 def reset_client() -> None:
-    """Drop the cached SDK client - call after the API key changes (requires app restart in practice,
-    since settings are cached, but kept for tests that monkeypatch settings)."""
-    global _client
-    _client = None
+    """Drop all cached SDK clients - call after an API key changes (requires
+    app restart in practice, since settings are cached, but kept for tests
+    that monkeypatch settings)."""
+    _clients.clear()
 
 
 def list_models() -> list[ModelCapability]:
@@ -87,7 +109,7 @@ def record_usage(model: str, usage: dict) -> None:
 
 def test_connection(model: str | None = None) -> ConnectionTestResult:
     target_model = model or get_config().selected_model
-    success, latency_ms, error = get_client().test_connection(target_model)
+    success, latency_ms, error = get_client_for_model(target_model).test_connection(target_model)
     return ConnectionTestResult(success=success, model=target_model, latency_ms=latency_ms, error=error)
 
 
@@ -101,7 +123,7 @@ def generate_json(
 ) -> T:
     config = get_config()
     target_model = model or config.selected_model
-    parsed, usage = get_client().generate_json(
+    parsed, usage = get_client_for_model(target_model).generate_json(
         model=target_model,
         prompt=prompt,
         response_schema=response_schema,

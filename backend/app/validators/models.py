@@ -4,6 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.ai.schema import GeminiSchemaModel
 from app.core.models import utcnow
 
 
@@ -20,7 +21,7 @@ class QualityIssueLLM(BaseModel):
     suggested_fix: str | None = None
 
 
-class QualityReviewBatchLLM(BaseModel):
+class QualityReviewBatchLLM(GeminiSchemaModel):
     issues: list[QualityIssueLLM] = Field(default_factory=list)
 
 

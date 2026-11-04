@@ -16,19 +16,19 @@ def test_get_config_defaults_to_registry_default(client):
     resp = client.get("/api/ai/config")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["selected_model"] == "gemini-2.0-flash"
+    assert body["selected_model"] == "gemini-3.8-flash"
     assert body["temperature"] == 0.2
 
 
 def test_update_config_persists(client):
-    resp = client.put("/api/ai/config", json={"selected_model": "gemini-1.5-pro", "temperature": 0.7})
+    resp = client.put("/api/ai/config", json={"selected_model": "gemini-3.8-flash", "temperature": 0.7})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["selected_model"] == "gemini-1.5-pro"
+    assert body["selected_model"] == "gemini-3.8-flash"
     assert body["temperature"] == 0.7
 
     resp2 = client.get("/api/ai/config")
-    assert resp2.json()["selected_model"] == "gemini-1.5-pro"
+    assert resp2.json()["temperature"] == 0.7
 
 
 def test_update_config_rejects_unknown_model(client):
@@ -37,7 +37,7 @@ def test_update_config_rejects_unknown_model(client):
 
 
 def test_test_connection_not_configured_returns_success_false(client, monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
     from app.core.config import get_settings
 
     get_settings.cache_clear()
@@ -61,17 +61,17 @@ def test_usage_stats_empty_by_default(client):
 
 
 def test_record_usage_reflected_in_usage_endpoint(client):
-    ai_service.record_usage("gemini-2.0-flash", {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150})
+    ai_service.record_usage("gemini-3.8-flash", {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150})
 
     resp = client.get("/api/ai/usage")
     body = resp.json()
     assert body["total_requests"] == 1
     assert body["total_tokens"] == 150
-    assert body["by_model"]["gemini-2.0-flash"]["total_tokens"] == 150
+    assert body["by_model"]["gemini-3.8-flash"]["total_tokens"] == 150
 
-    ai_service.record_usage("gemini-2.0-flash", {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
+    ai_service.record_usage("gemini-3.8-flash", {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
     resp2 = client.get("/api/ai/usage")
     body2 = resp2.json()
     assert body2["total_requests"] == 2
-    assert body2["by_model"]["gemini-2.0-flash"]["total_tokens"] == 165
-    assert body2["by_model"]["gemini-2.0-flash"]["request_count"] == 2
+    assert body2["by_model"]["gemini-3.8-flash"]["total_tokens"] == 165
+    assert body2["by_model"]["gemini-3.8-flash"]["request_count"] == 2

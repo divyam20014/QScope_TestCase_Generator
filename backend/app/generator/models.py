@@ -5,6 +5,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from app.ai.schema import GeminiSchemaModel
 from app.core.models import utcnow
 
 
@@ -57,7 +58,7 @@ class GeneratedTestCaseLLM(BaseModel):
     assumptions: str | None = None
 
 
-class GeneratedTestBatchLLM(BaseModel):
+class GeneratedTestBatchLLM(GeminiSchemaModel):
     test_cases: list[GeneratedTestCaseLLM] = Field(default_factory=list)
 
 

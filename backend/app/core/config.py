@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     local_data_dir: Path = REPO_ROOT / "local_data"
 
     gemini_api_key: str | None = None
-    gemini_default_model: str = "gemini-2.0-flash"
+    gemini_default_model: str = "gemini-3.8-flash"
+
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 

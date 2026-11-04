@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.ai.exceptions import GeminiNotConfiguredError, GeminiQuotaExceededError, GeminiRequestError
+from app.ai.exceptions import AIProviderNotConfiguredError, AIProviderQuotaExceededError, AIProviderRequestError
 from app.core import project_service
 from app.core.document_service import DocumentNotFoundError
 from app.core.project_service import ProjectNotFoundError
@@ -20,15 +20,15 @@ def _ensure_project_exists(project_id: str) -> None:
         raise HTTPException(status_code=404, detail="Project not found") from exc
 
 
-def _raise_for_gemini_error(exc: Exception) -> None:
-    if isinstance(exc, GeminiNotConfiguredError):
+def _raise_for_ai_provider_error(exc: Exception) -> None:
+    if isinstance(exc, AIProviderNotConfiguredError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if isinstance(exc, GeminiQuotaExceededError):
+    if isinstance(exc, AIProviderQuotaExceededError):
         raise HTTPException(
             status_code=429,
             detail={"message": str(exc), "retry_after_seconds": exc.retry_after_seconds},
         ) from exc
-    if isinstance(exc, GeminiRequestError):
+    if isinstance(exc, AIProviderRequestError):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     raise exc
 
@@ -46,8 +46,8 @@ def extract(project_id: str, body: ExtractRequest = ExtractRequest()) -> dict:
     _ensure_project_exists(project_id)
     try:
         return requirements_service.extract_for_project(project_id, model=body.model)
-    except (GeminiNotConfiguredError, GeminiQuotaExceededError, GeminiRequestError) as exc:
-        _raise_for_gemini_error(exc)
+    except (AIProviderNotConfiguredError, AIProviderQuotaExceededError, AIProviderRequestError) as exc:
+        _raise_for_ai_provider_error(exc)
 
 
 @router.post("/extract/{document_id}", response_model=list[Requirement])
@@ -57,8 +57,8 @@ def extract_document(project_id: str, document_id: str, body: ExtractRequest = E
         return requirements_service.extract_for_document(project_id, document_id, model=body.model)
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Document not found") from exc
-    except (GeminiNotConfiguredError, GeminiQuotaExceededError, GeminiRequestError) as exc:
-        _raise_for_gemini_error(exc)
+    except (AIProviderNotConfiguredError, AIProviderQuotaExceededError, AIProviderRequestError) as exc:
+        _raise_for_ai_provider_error(exc)
 
 
 @router.get("", response_model=list[Requirement])

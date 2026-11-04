@@ -1,9 +1,14 @@
 import { AppLayout } from '@/components/layout/AppLayout'
+import { AIConfigurationPage } from '@/pages/AIConfigurationPage'
+import { CoverageAnalysisPage } from '@/pages/CoverageAnalysisPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ProjectsPage } from '@/pages/ProjectsPage'
+import { ReportsPage } from '@/pages/ReportsPage'
 import { RepositoryPage } from '@/pages/RepositoryPage'
+import { RequirementAnalysisPage } from '@/pages/RequirementAnalysisPage'
+import { TestGeneratorPage } from '@/pages/TestGeneratorPage'
 import { Route, Routes } from 'react-router-dom'
 
 export default function App() {
@@ -13,24 +18,12 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
-        <Route
-          path="/requirement-analysis"
-          element={<PlaceholderPage title="Requirement Analysis" phase="Phase 5" />}
-        />
-        <Route
-          path="/test-generator"
-          element={<PlaceholderPage title="Test Case Generator" phase="Phase 6" />}
-        />
+        <Route path="/requirement-analysis" element={<RequirementAnalysisPage />} />
+        <Route path="/test-generator" element={<TestGeneratorPage />} />
         <Route path="/test-repository" element={<RepositoryPage />} />
-        <Route
-          path="/coverage"
-          element={<PlaceholderPage title="Coverage Analysis" phase="Phase 7" />}
-        />
-        <Route path="/reports" element={<PlaceholderPage title="Reports" phase="Phase 9" />} />
-        <Route
-          path="/ai-configuration"
-          element={<PlaceholderPage title="AI Configuration" phase="Phase 4 (Gemini Integration)" />}
-        />
+        <Route path="/coverage" element={<CoverageAnalysisPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/ai-configuration" element={<AIConfigurationPage />} />
         <Route path="/settings" element={<PlaceholderPage title="Settings" phase="a later phase" />} />
       </Routes>
     </AppLayout>

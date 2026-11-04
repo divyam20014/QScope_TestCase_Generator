@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.ai.client import GeminiClient
-from app.ai.exceptions import GeminiNotConfiguredError, GeminiQuotaExceededError, GeminiRequestError
+from app.ai.exceptions import AIProviderNotConfiguredError, AIProviderQuotaExceededError, AIProviderRequestError
 
 
 class _FakeAPIError(Exception):
@@ -43,11 +43,15 @@ def test_missing_api_key_raises_not_configured(monkeypatch):
     from app.core.config import get_settings
 
     get_settings.cache_clear()
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    # setenv to "" (not delenv) - delenv only removes the os.environ
+    # override, and Settings still falls back to a real value in the
+    # developer's own .env file if one exists; "" always wins since
+    # pydantic-settings prefers os.environ over the .env file.
+    monkeypatch.setenv("GEMINI_API_KEY", "")
     get_settings.cache_clear()
 
     client = GeminiClient()
-    with pytest.raises(GeminiNotConfiguredError):
+    with pytest.raises(AIProviderNotConfiguredError):
         client._sdk()
 
 
@@ -80,7 +84,7 @@ def test_call_with_retry_quota_exceeded_after_max_retries(monkeypatch):
     def always_429():
         raise _FakeErrorsModule.ClientError(429)
 
-    with pytest.raises(GeminiQuotaExceededError):
+    with pytest.raises(AIProviderQuotaExceededError):
         client._call_with_retry(always_429, max_retries=1)
 
 
@@ -90,7 +94,7 @@ def test_call_with_retry_non_quota_client_error_raises_immediately():
     def bad_request():
         raise _FakeErrorsModule.ClientError(400)
 
-    with pytest.raises(GeminiRequestError) as exc_info:
+    with pytest.raises(AIProviderRequestError) as exc_info:
         client._call_with_retry(bad_request)
     assert exc_info.value.status_code == 400
 
@@ -104,7 +108,7 @@ def test_call_with_retry_server_error_retries_then_raises(monkeypatch):
         calls["n"] += 1
         raise _FakeErrorsModule.ServerError(500)
 
-    with pytest.raises(GeminiRequestError):
+    with pytest.raises(AIProviderRequestError):
         client._call_with_retry(always_500, max_retries=2)
     assert calls["n"] == 3
 
@@ -112,11 +116,11 @@ def test_call_with_retry_server_error_retries_then_raises(monkeypatch):
 def test_test_connection_returns_failure_on_not_configured(monkeypatch):
     from app.core.config import get_settings
 
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "")
     get_settings.cache_clear()
 
     client = GeminiClient()
-    success, latency_ms, error = client.test_connection("gemini-2.0-flash")
+    success, latency_ms, error = client.test_connection("gemini-3.8-flash")
     assert success is False
     assert latency_ms is not None
     assert "GEMINI_API_KEY" in (error or "")
@@ -141,7 +145,7 @@ def test_generate_json_returns_parsed_and_usage(monkeypatch):
     class _Schema:
         pass
 
-    parsed, usage = client.generate_json(model="gemini-2.0-flash", prompt="hi", response_schema=_Schema)
+    parsed, usage = client.generate_json(model="gemini-3.8-flash", prompt="hi", response_schema=_Schema)
     assert parsed == {"foo": "bar"}
     assert usage == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
 

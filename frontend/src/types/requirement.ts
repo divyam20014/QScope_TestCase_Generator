@@ -19,6 +19,17 @@ export interface RequirementSource {
   chunk_ids: number[]
 }
 
+export interface ClarificationItem {
+  id: string
+  project_id: string
+  requirement_id: string
+  question: string
+  status: 'open' | 'resolved'
+  created_at: string
+  resolved_at: string | null
+  resolution_note: string | null
+}
+
 export interface Requirement {
   id: string
   project_id: string

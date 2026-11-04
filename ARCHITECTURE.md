@@ -126,12 +126,34 @@ reach the browser — Gemini calls are backend-only.
 - All file paths resolved against a sandbox root; traversal rejected.
 - Uploaded document content is treated as untrusted data in all prompts
   (never as instructions) — explicit prompt-injection guard in `app/ai`.
-- Secrets (Gemini API key) read from `.env`/environment only, excluded from
-  backups and exports, never logged.
+- Secrets (Gemini/OpenAI/Anthropic API keys) read from `.env`/environment
+  only, excluded from backups and exports, never logged.
 
 ## 9. Extensibility
 
-AI provider access goes through a single `AIProvider` interface in `app/ai`;
-Gemini is the only implementation shipped in this release, but the interface
-is shaped so an OpenAI/Groq/Ollama adapter can be added later without
-touching `generator/`, `requirements/`, or `validators/`.
+AI provider access goes through a single `AIProvider` interface
+(`app/ai/provider.py`) - a `Protocol` with `generate_json`/`test_connection`.
+Gemini (`app/ai/client.py`), OpenAI (`app/ai/openai_client.py`), and
+Anthropic (`app/ai/anthropic_client.py`) each implement it. `app/ai/
+model_registry.py` tags every model with its `provider`; `app/ai/service.py`
+resolves the right client from the user's selected model id and caches one
+client instance per provider. `app/requirements`, `app/generator`, and
+`app/validators` only ever call `app.ai.service.generate_json`/
+`test_connection` - never a concrete client - so adding a fourth provider
+means adding one new client file plus registry entries, nothing else.
+
+Each provider's SDK has real, materially different quirks the client layer
+absorbs so callers never see them:
+- **Gemini** (`google-genai`): `response_schema` as a Pydantic class does
+  not resolve `$ref`/`$defs` for nested models, and has no JSON "null"
+  type - `app/ai/schema.py`'s `GeminiSchemaModel` base class (used by every
+  LLM-facing *container* response model: `ExtractionBatchLLM`,
+  `GeneratedTestBatchLLM`, `QualityReviewBatchLLM`) flattens the schema
+  before it reaches the SDK. This was a real, confirmed bug - found via a
+  live call with a real API key, not a guess - that silently broke every
+  structured-output call in Phases 5-7 despite 160+ passing mocked tests,
+  since no test exercised the real SDK's schema-conversion path.
+- **OpenAI** (`openai`, Responses API) and **Anthropic** (`anthropic`,
+  Messages API) both ship their own `.parse(..., text_format=/output_format=
+  Model)` convenience methods that resolve nested schemas internally, so no
+  flattening wrapper is needed for either.

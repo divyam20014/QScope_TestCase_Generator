@@ -1,0 +1,27 @@
+{
+  "blocks": [
+    {
+      "block_id": "b1",
+      "type": "paragraph",
+      "text": "REQ-1: The system shall allow a registered user to reset their password by entering their email address and clicking a reset link sent to that email. The reset link shall expire after 30 minutes.",
+      "level": null,
+      "page": null,
+      "sheet": null,
+      "section": null,
+      "table_data": null
+    },
+    {
+      "block_id": "b2",
+      "type": "paragraph",
+      "text": "REQ-2: The system shall lock a user account for 15 minutes after 5 consecutive failed login attempts.",
+      "level": null,
+      "page": null,
+      "sheet": null,
+      "section": null,
+      "table_data": null
+    }
+  ],
+  "warnings": [],
+  "page_count": null,
+  "requires_ocr": false
+}

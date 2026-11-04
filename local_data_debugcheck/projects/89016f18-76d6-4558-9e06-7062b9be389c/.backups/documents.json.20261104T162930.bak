@@ -1,0 +1,24 @@
+[
+  {
+    "id": "bc089484-81a0-4beb-8032-e24a6c1fc511",
+    "project_id": "89016f18-76d6-4558-9e06-7062b9be389c",
+    "filename": "sample_req.txt",
+    "extension": ".txt",
+    "size_bytes": 298,
+    "content_hash": "5e877581d340357bd40be486c04f5670b175bf34dc8bbe962bd47a49508e4d80",
+    "status": "completed",
+    "error": null,
+    "warnings": [],
+    "page_count": null,
+    "requires_ocr": false,
+    "block_count": 2,
+    "is_authoritative": false,
+    "duplicate_of": null,
+    "possible_conflicts": [],
+    "indexed": false,
+    "index_error": null,
+    "indexed_chunk_count": 0,
+    "uploaded_at": "2026-11-04T10:59:00.964699Z",
+    "processed_at": "2026-11-04T10:59:00.984631Z"
+  }
+]
