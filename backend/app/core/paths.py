@@ -84,16 +84,48 @@ def requirements_dir(project_id: str) -> Path:
     return path
 
 
+def requirements_file(project_id: str) -> Path:
+    return requirements_dir(project_id) / "requirements.json"
+
+
+def clarifications_file(project_id: str) -> Path:
+    return requirements_dir(project_id) / "clarifications.json"
+
+
 def test_cases_dir(project_id: str) -> Path:
     path = safe_join(get_data_root(), "test_cases", project_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
+def test_cases_file(project_id: str) -> Path:
+    return test_cases_dir(project_id) / "test_cases.json"
+
+
+def quality_issues_file(project_id: str) -> Path:
+    return test_cases_dir(project_id) / "quality_issues.json"
+
+
+def generation_jobs_file(project_id: str) -> Path:
+    return history_dir(project_id) / "generation_jobs.json"
+
+
+def version_history_file(project_id: str) -> Path:
+    return history_dir(project_id) / "version_history.json"
+
+
 def reports_dir(project_id: str) -> Path:
     path = safe_join(get_data_root(), "reports", project_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def reports_index_file(project_id: str) -> Path:
+    return reports_dir(project_id) / "_index.json"
+
+
+def report_file(project_id: str, filename: str) -> Path:
+    return safe_join(reports_dir(project_id), filename)
 
 
 def history_dir(project_id: str) -> Path:
@@ -106,6 +138,14 @@ def configurations_dir() -> Path:
     path = safe_join(get_data_root(), "configurations")
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def ai_config_file() -> Path:
+    return configurations_dir() / "ai.json"
+
+
+def ai_usage_file() -> Path:
+    return configurations_dir() / "ai_usage.json"
 
 
 def templates_dir(project_id: str | None = None) -> Path:

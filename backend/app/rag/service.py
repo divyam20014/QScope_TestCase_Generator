@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.core import document_service
 from app.core.document_models import DocumentStatus
 from app.rag.index_store import RagProjectIndex
-from app.rag.models import SearchHit
+from app.rag.models import Chunk, SearchHit
 
 # One live index instance per project for the life of the process - avoids
 # re-reading the FAISS file from disk on every request. Safe because all
@@ -71,6 +71,14 @@ def reindex_project(project_id: str) -> dict:
 def search(project_id: str, query: str, top_k: int = 5, mode: str = "hybrid", semantic_weight: float = 0.5) -> list[SearchHit]:
     index = _get_index(project_id)
     return index.search(query, top_k=top_k, mode=mode, semantic_weight=semantic_weight)
+
+
+def chunks_for_document(project_id: str, document_id: str) -> list[Chunk]:
+    """All indexed chunks for one document, in the order they were chunked
+    (document reading order) - used by requirement extraction to rebuild a
+    document's content from RAG chunks instead of re-reading raw files."""
+    index = _get_index(project_id)
+    return [c for c in index.chunks if c.document_id == document_id]
 
 
 def stats(project_id: str) -> dict:

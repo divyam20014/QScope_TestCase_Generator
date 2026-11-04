@@ -107,8 +107,16 @@ canonical stored record always carries the full schema.
 
 ## 7. Frontend
 
-React + TypeScript + Vite + Tailwind + shadcn/ui, TanStack Table for the
-repository grid, Recharts for dashboard/coverage charts. API client talks
+React + TypeScript + Vite + Tailwind + shadcn/ui, Recharts for dashboard/
+coverage charts. The repository grid (search/filter/sort/paginate/select) is
+hand-rolled plain React state over the in-memory test case array, matching
+the Documents page's existing table pattern — not TanStack Table: the
+`@tanstack/react-table` dependency installed in Phase 1 turned out to be
+v9, which replaced the familiar `useReactTable`/`getXRowModel()` hook API
+with an atoms/feature-registration architecture (`useTable`, `tableFeatures`,
+`table.atoms.*`); given the grid's modest scale (one project's test cases,
+client-side pagination), hand-rolling was simpler and lower-risk than
+adopting that architecture, so the dependency was removed. API client talks
 only to the local FastAPI server (`localhost` by default); no API keys ever
 reach the browser — Gemini calls are backend-only.
 

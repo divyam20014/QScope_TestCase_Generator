@@ -1,157 +1,191 @@
 # Implementation Status
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
-## Current phase: Phase 3 — RAG (complete)
+## Current phase: Phase 10 — Hardening (complete). All 10 planned phases done.
 
 ## Summary
-Local, database-free Retrieval-Augmented Generation is fully working:
-every successfully-parsed document is automatically chunked, embedded
-locally, and indexed into a per-project FAISS + BM25 hybrid index, with
-hybrid/semantic/keyword search, incremental add/remove, full rebuild, and
-corruption recovery. This is the retrieval layer Phase 4 (Gemini) and
-Phase 5 (Requirement Analysis) will build on — no document content is sent
-anywhere external yet; everything in this phase runs locally.
+Phase 9 added Excel/Word/PDF/CSV/JSON exporters with selective scope and
+persisted export history. Phase 10 is the regression/security/performance/
+documentation pass across everything built in Phases 1-9: it found and
+fixed one real O(n^2) performance bug, added security tests that didn't
+exist before (path traversal, secret handling, upload limits, a live
+backup/restore drill), and added the Windows install documentation the
+project was missing. With this, every phase in DEVELOPMENT_PLAN.md is
+complete.
 
-## Completed
-### Backend (`backend/app/rag/`)
-- `app/rag/models.py`: `Chunk` (chunk_id, project_id, document_id,
-  document_name, page, sheet, section, text, `requirement_id` reserved for
-  Phase 5) and `SearchHit` (chunk + blended/semantic/keyword scores).
-- `app/rag/chunking.py`: groups `ExtractedBlock`s into semantically
-  coherent chunks — tables always become their own chunk, headings start a
-  new section context, paragraphs/list items accumulate under the current
-  section up to a configurable character cap (default 800, never splitting
-  a block mid-text), and exact-duplicate chunk text is dropped.
-- `app/rag/embeddings.py`: lazy-loaded, cached `SentenceTransformer`
-  (`all-MiniLM-L6-v2`, configurable via `EMBEDDING_MODEL`), L2-normalized
-  embeddings so FAISS inner-product search doubles as cosine similarity.
-- `app/rag/keyword_index.py` + `index_store.py`: per-project
-  `RagProjectIndex` wrapping a FAISS `IndexIDMap2(IndexFlatIP)` (supports
-  add/remove by stable integer id, enabling true incremental indexing) and
-  an in-memory `rank_bm25.BM25Okapi` rebuilt from the persisted chunk list
-  on each load (cheap, avoids persisting a second binary format). Supports:
-  - `add_document` — replaces any existing chunks for that document first,
-    so re-uploading/re-processing a document is idempotent.
-  - `remove_document` — removes both the FAISS vectors and chunk metadata.
-  - `rebuild` — full from-scratch rebuild across a project's documents.
-  - `search_semantic` / `search_keyword` / `search_hybrid` (min-max score
-    normalization + configurable semantic/keyword weight blend) /
-    `search` (mode dispatcher).
-  - Automatic recovery: if the FAISS binary is missing or corrupt but the
-    chunk metadata JSON survived, vectors are recomputed from the stored
-    text on load rather than losing the index.
-- `app/rag/service.py`: the glue between documents and the index — indexes
-  a document right after a successful parse, removes a document's chunks
-  when it's deleted, rebuilds a whole project on demand, exposes search and
-  stats, and keeps one live `RagProjectIndex` per project in memory
-  (dropped on project delete) so repeated searches don't re-read the FAISS
-  file from disk every request.
-- `app/api/rag.py`: `GET /api/projects/{id}/rag/search?q=&mode=&top_k=&
-  semantic_weight=`, `POST /api/projects/{id}/rag/reindex`,
-  `GET /api/projects/{id}/rag/stats`.
-- `app/api/documents.py` now triggers indexing automatically right after a
-  successful upload+parse, and removes the document's chunks on delete.
-  `DocumentRecord` gained `indexed`, `index_error`, `indexed_chunk_count`.
-- `project_service.duplicate_project` now also rewrites `project_id` inside
-  the copied `chunks.json` (same fix pattern as Phase 2's `documents.json`
-  fix), so a duplicated project's RAG metadata doesn't point at the
-  original project.
+## Phase 9 — Reporting
 
-### Frontend
-- `types/rag.ts`, `types/document.ts` updated with the new indexing fields.
-- Documents table shows an "Indexed (N)" / "Not indexed" badge per document
-  (tooltip shows the index error if one occurred — indexing failures never
-  block the upload itself).
-- `RagSearchPanel` (new): a "Test Retrieval (RAG)" panel at the bottom of
-  the Documents page — lets a user try hybrid/semantic/keyword search
-  against the active project's indexed content and see each hit's source
-  document, page/sheet/section, and score. This exists so retrieval
-  quality can be verified now, before Phases 4-6 build the generation
-  pipeline on top of it.
+### Backend (`backend/app/exporters/`)
+- `data.py`: one shared, format-agnostic layer defining the 17-column
+  test-case schema, the traceability-matrix columns, and the clarification-
+  register columns exactly once (`TEST_CASE_COLUMNS` / `TRACEABILITY_COLUMNS`
+  / `CLARIFICATION_COLUMNS` + `*_to_row()` functions) - every writer below
+  consumes the same shaped rows, so the schema can't drift between formats.
+  `ExportScope` (`requirement_ids` / `test_types` / `test_categories`):
+  `requirement_ids` scopes the traceability matrix and clarification
+  register to the same requirements, not just which test-case rows appear;
+  `test_types`/`test_categories` only filter test-case rows.
+- `xlsx_writer.py` (openpyxl): 3 sheets - Test Cases, Traceability Matrix,
+  Clarification Register.
+- `docx_writer.py` (python-docx): a heading + table per section, same 3
+  sections.
+- `pdf_writer.py` (reportlab, landscape letter): same 3 sections as
+  `Paragraph`-wrapped table cells so long text wraps instead of overflowing.
+- `csv_writer.py`: **Test Cases only** - CSV is inherently single-table, so
+  there's no sheet/section for the other two to live in. Documented as a
+  deliberate limitation, not worked around with a zip-of-CSVs.
+- `json_writer.py`: one JSON object with all three as top-level keys.
+- `service.py`: `create_export` persists the generated file to
+  `local_data/reports/<project_id>/<export_id>.<ext>` and an `ExportRecord`
+  (format, filename, size, scope, test_case_count) to that project's
+  `reports/_index.json`; `get_export_content` reads it back for download.
+- `app/api/exports.py`: `POST /exports` (creates + persists),
+  `GET /exports` (history), `GET /exports/{id}/download` (streams the file
+  with the correct content-type and `Content-Disposition: attachment`).
+
+### Tests
+- `tests/test_exporters.py` (7 tests): every writer re-opened and verified
+  with its own real parser - `openpyxl.load_workbook`, `docx.Document`, PDF
+  magic-byte + size check, `csv.reader`, `json.loads` - confirming each
+  format is not just "bytes were produced" but **actually valid, reopenable
+  output** containing the right data in the right place. Plus an
+  empty-dataset case for all five.
+- `tests/test_exports_api.py` (6 tests): full pipeline through the real API
+  (extract -> generate -> coverage-stamp -> export); all 5 formats via one
+  loop test; requirement-scoped export correctly narrows the traceability
+  matrix too; export history listing; unknown project/export 404s.
+
+## Phase 10 — Hardening
+
+### Security review
+- **Path traversal**: `safe_join` (the primitive every `app/core/paths.py`
+  helper is built on) now has direct unit tests against real `..`/absolute
+  escape attempts - it was never actually tested before, only used. Added a
+  global `PathTraversalError` -> `400 {"detail": "Invalid id"}` exception
+  handler in `app/main.py`; previously an escape attempt fell through to an
+  unhandled exception (Starlette's default 500, not information-leaking,
+  but untested and opaque). The exception message itself embeds a resolved
+  absolute filesystem path - the handler deliberately never echoes it.
+- **Prompt-injection guards**: re-verified (not re-built) that every
+  LLM-facing prompt - requirement extraction, test generation, quality
+  review - explicitly frames source document/test-case content as
+  untrusted data, never instructions. This was already true from Phases
+  5-7; this phase's contribution is confirming it holds across all three
+  prompt modules at once, in one pass.
+- **Secrets**: confirmed (with a new test) that `GEMINI_API_KEY` never
+  appears in any API response, including `/api/system/info`, which only
+  ever returns a boolean.
+- **Upload limits**: confirmed `max_upload_size_mb` is actually enforced
+  (it was, since Phase 2) - it just had no test before; added one (413 on
+  an oversized file).
+
+### Performance pass
+Ran a synthetic 300-requirement / 1800-test-case project (no real documents
+needed - test cases were written directly as JSON to exercise the data
+layer at scale) through every read-heavy endpoint. Findings:
+- `GET /requirements`, `/test-cases`, `/coverage`, `/coverage/traceability`:
+  all well under a second to ~1.3s even cold.
+- **Found and fixed a real bug**: `GET /coverage/duplicates` took **88
+  seconds**. Root cause: `find_semantic_duplicates` computed every pairwise
+  cosine similarity with an individual `float(np.dot(vectors[i],
+  vectors[j]))` call inside a Python double loop - ~1.6M individual calls
+  for 1800 candidates. Fixed by computing the full similarity matrix with
+  one vectorized `vectors @ vectors.T` (BLAS) call instead; the grouping
+  loop then just indexes the precomputed matrix. **The loop itself dropped
+  from ~88s to ~0.1s** - verified by direct profiling, and the existing
+  `test_duplicates.py` suite re-run to confirm identical grouping results
+  (same bug class as any "accidentally quadratic" code: correct, just
+  needlessly slow - not caught by any test because none of the existing
+  tests used more than a handful of test cases).
+- At that same 1800-row scale, two further costs remain and are
+  **library/hardware-inherent, not algorithmic bugs**, so they're
+  documented rather than "fixed" with disproportionate effort:
+  - CPU-based sentence-transformer embedding of 1800 texts takes ~59s on
+    its own (profiled directly) - this is now essentially the entire cost
+    of `/coverage/duplicates` at that scale, with the actual comparison
+    logic negligible after the fix above.
+  - DOCX/PDF export of 1800 rows took 15-40s in different runs, profiled to
+    python-docx's/reportlab's own per-cell XML/object construction
+    overhead (confirmed via `cProfile` - dominated by `docx.oxml`
+    attribute/child-element machinery, not anything in this project's own
+    code). XLSX/CSV/JSON export of the same 1800 rows took well under 4s.
+- **Recommendation for very large projects** (recorded here rather than
+  silently left for a user to discover): prefer XLSX/CSV/JSON over DOCX/PDF
+  for exports once a project has on the order of 1000+ test cases, and
+  expect `/coverage/duplicates` to take real time (tens of seconds) at
+  similar scale, since it must re-embed every test case fresh on every
+  call - no caching layer exists for that path today.
+
+### Backup/restore drill
+- Phase 1 already unit-tested the storage primitive itself
+  (`test_json_store.py`: corrupt-file -> backup recovery). This phase adds
+  an end-to-end drill through the real API: create two test cases (so a
+  rotated backup exists), corrupt the live `test_cases.json` on disk mid-
+  session, then confirm `GET /test-cases` transparently recovers the
+  correct prior state from the automatic backup rather than erroring or
+  returning an empty/wrong list - and that the corrupt file is repaired in
+  place as a side effect of the recovery read.
+
+### Documentation
+- Added a root `README.md` (previously the repo had none) with: Windows
+  setup steps (Python venv, `pip install`, `.env` key setup, `npm install`),
+  how to run both dev servers, how to run both test suites, where user data
+  lives (`local_data/`, gitignored) and how to back it up/reset it.
 
 ## Tests executed (all passed, real execution)
-- Backend: `pytest` — **57/57 passed** (up from 35 in Phase 2):
-  - `tests/test_chunking.py` (6 tests): tables as their own chunk,
-    same-section accumulation, max-char splitting, section-change
-    flushing, exact-duplicate-text dedup, empty input handling.
-  - `tests/test_rag_index.py` (9 tests): add+semantic search, keyword
-    search finds true matches, keyword search excludes non-matches, hybrid
-    blending, document removal clears only that document's chunks,
-    re-adding a document replaces (not duplicates) its old chunks, index
-    persists and reloads correctly from disk, **recovery from a corrupt
-    FAISS file** (chunk metadata intact, vectors recomputed), and
-    cross-project isolation (a second project's index is completely empty
-    and returns no hits for content that only exists in the first).
-  - `tests/test_rag_api.py` (7 tests): upload triggers indexing, search
-    returns relevant results, all 3 search modes work, deleting a document
-    removes its chunks from stats, reindex rebuilds from all documents,
-    RAG-level project isolation through the API, and 404 on a missing
-    project.
-  - All Phase 1/2 tests (`test_projects_api.py`, `test_json_store.py`,
-    `test_parsers.py`, `test_documents_api.py`) still green, unchanged.
-- Frontend: `npx tsc -b`, `npm run lint` (oxlint — same single pre-existing
-  acceptable warning as Phase 2), `npm run build` — all clean.
-- **Manual/live verification against the real running servers**: uploaded
-  real documents to a live project, confirmed automatic indexing (chunk
-  counts matched expectations), ran semantic search ("how do I log in"
-  correctly surfaced the login requirement chunk ranked above an unrelated
-  "Spec" heading chunk) and keyword search ("lock after 5 attempts"
-  returned exactly the one matching chunk), confirmed **true project
-  isolation live** (a second, empty project returns zero hits and zero
-  stats for a query that matches content only in the first project — not
-  just an automated-test claim, an actual live HTTP round trip), confirmed
-  deleting a document drops exactly its chunks from the live stats
-  endpoint, confirmed reindex rebuilds correctly, and re-verified the same
-  upload -> index -> search flow through the real Vite dev-server proxy
-  (the exact path the browser uses). `local_data/` was confirmed clean
-  after every test project was deleted.
+- Backend: `pytest` — **160/160 passed** (up from 141 before Phase 9):
+  - Phase 9: `test_exporters.py` (7), `test_exports_api.py` (6).
+  - Phase 10: `test_security.py` (7) - the only new test file; the
+    duplicate-detection fix was verified against the **existing**
+    `test_duplicates.py` suite (still 5/5 passing, confirming the
+    vectorized rewrite produces identical results) plus the standalone
+    profiling run described above.
+  - All Phase 1-8 tests unchanged and still green.
+- Frontend: `npx tsc -b`, `npm run lint`, `npm run build` — all clean
+  (no frontend changes in Phases 9-10; re-verified anyway as part of the
+  regression pass).
+- **Live verification**: every new Phase 9 endpoint exercised through a
+  real running instance (temporary data dir, cleaned up after); the
+  performance findings above come from real profiled runs against a real
+  running app instance with real synthetic data, not estimates.
 
-## Bugs found and fixed during this phase
-1. **BM25 negative-score bug**: with a small corpus (as low as a single
-   indexed document — a completely normal state early in a project), BM25's
-   IDF term goes negative for any term present in most/all documents,
-   making raw score sign meaningless. The original `search_keyword`
-   filtered on `score > 0`, which silently dropped genuine matches whenever
-   a project had only one or two documents indexed. Fixed by using actual
-   query/chunk token overlap to decide relevance, and the raw BM25 score
-   only to rank among genuine matches. Caught by `test_keyword_search_finds_exact_terms`
-   failing during this phase's own test-writing, not after the fact.
-2. **Stale orphaned process during live verification**: a leftover
-   `multiprocessing` spawn-child process (from an earlier test run, parent
-   already dead) was still holding port 8000 and serving pre-Phase-3 code
-   with no RAG endpoints. Identified by exact PID via
-   `Get-CimInstance Win32_Process` (command line showed it was a
-   `multiprocessing.spawn` worker, not a legitimate server), killed
-   specifically, and the real backend was restarted and reverified before
-   any live claims were made. (A similar single-stale-process issue in
-   Phase 2 is why this was checked for proactively this time.)
-
-## Known limitations / gaps
-- BM25 is rebuilt from the full chunk list on every keyword/hybrid search
-  rather than being persisted as a serialized structure. This is simple and
-  avoids a second binary format to keep in sync, but will become a
-  measurable cost once a project has many thousands of chunks — acceptable
-  for now, worth revisiting if Phase 5/6 usage shows it matters.
-- Chunking is heuristic (character-count-based with section boundaries),
-  not driven by sentence/token-aware splitting — adequate for the
-  structured documents this app targets (requirement specs), less so for
-  dense unstructured prose.
-- `requirement_id` on `Chunk` exists but is always `null` until Phase 5
-  (Requirement Analysis) assigns real requirement IDs to source locations.
-- No UI exists yet to configure RAG settings (top-K, semantic/keyword
-  weight, chunk size) per the brief's Section 15 customization
-  requirements — the API supports it (`top_k`, `semantic_weight` query
-  params), but Settings/AI Configuration screens are later phases.
-- As in Phases 1-2, no Playwright/chromium-cli is available in this sandbox
-  for a literal screenshot-based check; verification used type-check,
-  lint, build, the full backend test suite, and live HTTP round-trips
-  through the actual running Vite proxy with real documents and real
-  embedding computations (no mocked AI/ML calls in the live checks).
+## Known limitations / gaps (project-wide, as of all 10 phases)
+- **No real Gemini API key was available in this environment at any point**
+  in this project's development. Every phase that calls Gemini (4, 5, 6,
+  7's quality-review pass) has its plumbing fully tested against mocked
+  responses and the real SDK's verified shapes/error classes, but actual
+  generation *quality* (does it avoid fabrication in practice, pick sensible
+  classifications/priorities, write genuinely useful test cases) has never
+  been observed against a real model. This is the single most important
+  thing to check before trusting this app's output: put a real key in
+  `.env` and run extraction + generation + quality-review against a real
+  fixture document.
+- The frontend covers Projects, Documents (+ RAG search), and the Test Case
+  Repository (Phase 8) end-to-end. It does **not** yet have UI for: running
+  requirement extraction or test generation jobs (Phases 5-6 - API-only
+  today), viewing coverage/traceability/duplicates (Phase 7 - API-only),
+  triggering the quality-review pass (Phase 7 - API-only), AI model/config
+  settings (Phase 4 - API-only), or browsing/downloading exports (Phase 9 -
+  API-only). All of that functionality exists and is tested at the API
+  layer; wiring it into the UI is the natural next increment of work if
+  wanted.
+- `/coverage/duplicates` has no caching - it re-embeds every test case on
+  every call. Fine at normal project scale; noticeably slow (tens of
+  seconds) in the thousands-of-test-cases range, per the performance pass
+  above.
+- DOCX/PDF export similarly has no obvious further speedup available
+  without a deeper rewrite of how those libraries build documents; XLSX/
+  CSV/JSON are the fast path for large exports.
+- As in every prior phase, there is no Playwright/chromium-cli in this
+  sandbox for a literal screenshot-based UI check - frontend verification
+  is type-check + lint + build + manual HTTP-level checks through the real
+  Vite proxy, consistent with every phase since Phase 1.
 
 ## Next step
-Awaiting explicit instruction to begin Phase 4 (Gemini integration): the
-official Google Gen AI SDK, a centralized model registry (no model name
-hardcoded in business logic), connection testing, structured JSON output,
-and rate-limit/quota-aware retry handling — built on top of the hybrid
-retrieval this phase now provides.
+All 10 planned phases are complete. Nothing has been committed to git by
+this session - review the working tree and commit when ready. The most
+valuable next action for the project itself is a real-key smoke test of
+extraction/generation/quality-review against a real document, since that's
+the one thing no amount of automated testing in this environment could
+verify.

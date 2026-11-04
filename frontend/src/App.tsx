@@ -3,6 +3,7 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { DocumentsPage } from '@/pages/DocumentsPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ProjectsPage } from '@/pages/ProjectsPage'
+import { RepositoryPage } from '@/pages/RepositoryPage'
 import { Route, Routes } from 'react-router-dom'
 
 export default function App() {
@@ -20,10 +21,7 @@ export default function App() {
           path="/test-generator"
           element={<PlaceholderPage title="Test Case Generator" phase="Phase 6" />}
         />
-        <Route
-          path="/test-repository"
-          element={<PlaceholderPage title="Test Case Repository" phase="Phase 8" />}
-        />
+        <Route path="/test-repository" element={<RepositoryPage />} />
         <Route
           path="/coverage"
           element={<PlaceholderPage title="Coverage Analysis" phase="Phase 7" />}
