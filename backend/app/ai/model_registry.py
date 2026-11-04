@@ -48,6 +48,28 @@ _MODELS: list[ModelCapability] = [
         ),
         context_window_tokens=200_000,
     ),
+    ModelCapability(
+        model_id="llama3.2",
+        provider="ollama",
+        display_name="Llama 3.2 (local, via Ollama)",
+        description=(
+            "Free, fully open-source, runs entirely on your own machine via Ollama - no API key, no "
+            "per-token cost, no external rate limits. Requires installing Ollama "
+            "(https://ollama.com) and running `ollama pull llama3.2` first. Not yet confirmed live in "
+            "this environment (no Ollama server was running here) - verify with Test Connection."
+        ),
+        context_window_tokens=128_000,
+    ),
+    ModelCapability(
+        model_id="qwen2.5",
+        provider="ollama",
+        display_name="Qwen 2.5 (local, via Ollama)",
+        description=(
+            "Another free, open-source local option via Ollama - good at structured/JSON output. "
+            "Requires `ollama pull qwen2.5` first. Not yet confirmed live in this environment."
+        ),
+        context_window_tokens=128_000,
+    ),
 ]
 
 

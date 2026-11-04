@@ -19,9 +19,10 @@ rank-bm25==0.2.2
 # Gemini (added in Phase 4)
 google-genai==2.34.0
 
-# OpenAI + Anthropic providers (multi-provider AI support)
+# OpenAI + Anthropic + Ollama providers (multi-provider AI support)
 openai==3.45.0
 anthropic==2.4.0
+ollama==0.6.3
 
 # Export (added in Phase 9)
 reportlab==4.2.5

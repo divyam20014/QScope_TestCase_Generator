@@ -115,6 +115,7 @@ class AnthropicClient:
         response_schema: type[T],
         temperature: float = 0.2,
         max_output_tokens: int = 8192,
+        max_retries: int = MAX_RETRIES,
     ) -> tuple[T, dict]:
         def _call():
             return self._sdk().messages.parse(
@@ -125,7 +126,7 @@ class AnthropicClient:
                 output_format=response_schema,
             )
 
-        response = self._call_with_retry(_call)
+        response = self._call_with_retry(_call, max_retries=max_retries)
         parsed = response.parsed_output
         if parsed is None:
             raise AIProviderRequestError("Anthropic returned no parsable structured output")

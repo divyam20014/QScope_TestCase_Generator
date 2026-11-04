@@ -28,10 +28,14 @@ class AIProvider(Protocol):
         response_schema: type[T],
         temperature: float,
         max_output_tokens: int,
+        max_retries: int = ...,
     ) -> tuple[T, dict]:
         """Returns (parsed_response, usage_dict) where usage_dict has
         prompt_tokens/completion_tokens/total_tokens keys. Raises
         AIProviderNotConfiguredError / AIProviderQuotaExceededError /
         AIProviderRequestError on failure - never a provider-SDK-specific
-        exception type."""
+        exception type. `max_retries` lets a caller doing cross-model
+        failover (see `app.ai.service.generate_json`) ask for 0 in-provider
+        retries so a struggling model is abandoned quickly instead of
+        exhausting its own backoff schedule first."""
         ...

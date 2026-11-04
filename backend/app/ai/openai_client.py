@@ -107,6 +107,7 @@ class OpenAIClient:
         response_schema: type[T],
         temperature: float = 0.2,
         max_output_tokens: int = 8192,
+        max_retries: int = MAX_RETRIES,
     ) -> tuple[T, dict]:
         def _call():
             return self._sdk().responses.parse(
@@ -117,7 +118,7 @@ class OpenAIClient:
                 max_output_tokens=max_output_tokens,
             )
 
-        response = self._call_with_retry(_call)
+        response = self._call_with_retry(_call, max_retries=max_retries)
         parsed = response.output_parsed
         if parsed is None:
             raise AIProviderRequestError("OpenAI returned no parsable structured output")

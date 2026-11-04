@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
+    ollama_host: str = "http://localhost:11434"
 
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 

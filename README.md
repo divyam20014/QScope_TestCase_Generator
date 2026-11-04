@@ -14,11 +14,24 @@ no database to install, no cloud service required except Gemini itself. See
 - **Python 3.11+** ([python.org](https://www.python.org/downloads/) - during
   install, check "Add python.exe to PATH")
 - **Node.js 20+** ([nodejs.org](https://nodejs.org/)) - includes `npm`
-- A **Google Gemini API key** (free tier) from
-  [aistudio.google.com/apikey](https://aistudio.google.com/apikey) - optional
-  to start: everything through document upload, RAG search, and the test
-  case repository works without one; only requirement extraction, test
-  generation, and the Gemini quality-review pass need it.
+- An AI provider for requirement extraction, test generation, and the
+  quality-review pass (everything through document upload, RAG search, and
+  the test case repository works without one). Pick any one:
+  - A **Google Gemini API key** (free tier) from
+    [aistudio.google.com/apikey](https://aistudio.google.com/apikey) - the
+    default.
+  - An **OpenAI** or **Anthropic** API key, if you'd rather use ChatGPT or
+    Claude - set `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` in `.env` and pick a
+    model in AI Configuration.
+  - **Ollama** ([ollama.com](https://ollama.com)) for a free, fully
+    open-source model that runs entirely on your own machine - no API key,
+    no cost, no external rate limits. Install it, run `ollama pull
+    llama3.2` (or any model you select in AI Configuration), then `ollama
+    serve`.
+
+  You can configure more than one - the app automatically fails over to
+  another configured model if the selected one is unavailable, over quota,
+  or overloaded, so generation doesn't just stop.
 
 ## Windows setup
 

@@ -112,6 +112,7 @@ class GeminiClient:
         response_schema: type[T],
         temperature: float = 0.2,
         max_output_tokens: int = 8192,
+        max_retries: int = MAX_RETRIES,
     ) -> tuple[T, dict]:
         from google.genai import types
 
@@ -127,7 +128,7 @@ class GeminiClient:
                 ),
             )
 
-        response = self._call_with_retry(_call)
+        response = self._call_with_retry(_call, max_retries=max_retries)
         parsed = getattr(response, "parsed", None)
         if parsed is None:
             raise AIProviderRequestError("Gemini returned no parsable structured output")

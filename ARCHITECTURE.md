@@ -133,14 +133,24 @@ reach the browser — Gemini calls are backend-only.
 
 AI provider access goes through a single `AIProvider` interface
 (`app/ai/provider.py`) - a `Protocol` with `generate_json`/`test_connection`.
-Gemini (`app/ai/client.py`), OpenAI (`app/ai/openai_client.py`), and
-Anthropic (`app/ai/anthropic_client.py`) each implement it. `app/ai/
+Gemini (`app/ai/client.py`), OpenAI (`app/ai/openai_client.py`), Anthropic
+(`app/ai/anthropic_client.py`), and Ollama (`app/ai/ollama_client.py` - free,
+open-source, runs locally, no API key) each implement it. `app/ai/
 model_registry.py` tags every model with its `provider`; `app/ai/service.py`
 resolves the right client from the user's selected model id and caches one
 client instance per provider. `app/requirements`, `app/generator`, and
 `app/validators` only ever call `app.ai.service.generate_json`/
-`test_connection` - never a concrete client - so adding a fourth provider
+`test_connection` - never a concrete client - so adding a fifth provider
 means adding one new client file plus registry entries, nothing else.
+
+`app.ai.service.generate_json` also does automatic cross-model failover: on
+any `AIProviderError` (not configured, quota exceeded, or an overloaded
+503) from the selected model, it tries every other registered model, across
+every provider, before giving up - each fallback attempt skips its own
+client's normal multi-attempt backoff (`max_retries=0`) so a struggling
+model is abandoned quickly rather than stalling the whole request on one
+provider's retry schedule. If every model fails, the originally-selected
+model's own error is what surfaces, not an arbitrary fallback's.
 
 Each provider's SDK has real, materially different quirks the client layer
 absorbs so callers never see them:

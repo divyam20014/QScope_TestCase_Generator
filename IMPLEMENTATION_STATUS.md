@@ -260,14 +260,82 @@ pause that and build multi-provider support instead. Both model ids are
 flagged as unverified directly in the registry's `description` field so
 this is visible in the AI Configuration UI, not just in this file.
 
+## Post-completion, round 2: fixed a frontend error-display bug, added a free local provider, and automatic cross-model failover (2026-11-04)
+
+Prompted by the user hitting a real `503 UNAVAILABLE` from Gemini (Google's
+own infrastructure under "high demand" - not a bug) rendered in the UI as
+the unhelpful literal string `[object Object]`.
+
+1. **Fixed the `[object Object]` bug** (a real frontend bug, separate from
+   the 503 itself): several backend endpoints raise `HTTPException(detail=
+   {"message": ..., "retry_after_seconds": ...})` for a 429 - an *object*,
+   not a string. `frontend/src/lib/api.ts` passed that object straight into
+   `new Error(detail)`, and JS's `Error` constructor silently stringifies a
+   non-string message to the literal text `"[object Object]"`. Rewrote the
+   shared error-handling path (`detailToMessage` + `readErrorAndThrow`, used
+   by `request`/`upload`/`downloadBlob` instead of three duplicated
+   try/catch blocks) to always extract a real string - `.message` when
+   `detail` is an object shaped like ours, `JSON.stringify` as a fallback
+   for anything else.
+2. **Added Ollama as a fourth, free, fully open-source provider**
+   (`app/ai/ollama_client.py`) - runs entirely on the user's own machine via
+   https://ollama.com, no API key, no external rate limits. Verified against
+   the actually-installed `ollama` package (0.6.3) by inspecting its real
+   `Client.chat()` signature and exception classes (`ResponseError` has
+   `.status_code`; a genuinely unreachable server raises a plain Python
+   `ConnectionError`, mapped to `AIProviderNotConfiguredError` since there's
+   no "key" to misconfigure, just a server to have running). Two model
+   entries added (`llama3.2`, `qwen2.5`) - both **unverified live** since no
+   Ollama server was running in this environment; flagged as such directly
+   in the registry description.
+3. **Built automatic cross-model failover**, at the user's explicit request
+   ("switch between models when too much load, do not stop execution").
+   `app.ai.service.generate_json` now tries the selected model first, and on
+   *any* `AIProviderError` (not configured, quota exceeded, or a
+   503-class overload - exactly what the user had just hit) automatically
+   tries every other registered model, across every provider, in registry
+   order, before giving up. Each fallback attempt uses `max_retries=0`
+   (`FAILOVER_MAX_RETRIES_PER_MODEL`) rather than each client's normal
+   up-to-3-attempt backoff - the whole point is to abandon a struggling
+   model quickly and move on, not spend minutes retrying the same one (this
+   is exactly what made the original 503 so slow to surface: ~170s of
+   in-client backoff before the error even reached the user). If every
+   candidate fails, the *originally selected* model's own error is what
+   gets raised - not whichever fallback happened to be tried last - since
+   that's the most actionable one for the caller. Required threading a new
+   `max_retries` parameter through every client's `generate_json` (Gemini,
+   OpenAI, Anthropic, Ollama) and the shared `AIProvider` Protocol.
+   `generator/service.py`'s existing "pause the job on quota exceeded"
+   handling is unchanged in code but now only actually triggers once every
+   model has failed, not just the selected one - "do not stop execution"
+   now means something stronger than it did when there was only Gemini.
+4. 21 new tests (`test_ollama_client.py` and `test_ai_failover.py`, plus
+   updates to `test_ai_service_routing.py` for the 4th provider) -
+   189/189 passing. The failover tests mock at the `get_client_for_model`
+   level to simulate quota-exceeded, not-configured, and overload failures
+   in combination, and confirm: the result comes from whichever model
+   actually succeeded; usage is only ever credited to that model, never a
+   failed one; and the *first* (preferred) model's error surfaces if
+   everything fails, not an arbitrary fallback's.
+
+**Not yet live-verified**: `gpt-5-mini`, `claude-haiku-5-5`, `llama3.2`, and
+`qwen2.5` are all unverified against a real account/server in this
+environment (no OpenAI/Anthropic keys were added here, and no Ollama server
+was running) - each is flagged as unverified directly in its registry
+`description`. The *mechanism* (failover itself, the Ollama client's
+request/error handling) is tested thoroughly; the *specific model ids*
+could turn out to be wrong the same way `gemini-2.0-flash` did, and would
+need the same live-correction treatment once a real key/server is
+available.
+
 ## Next step
-The user has an OpenAI key to add manually and intends to verify Gemini
-further later. Recommended next actions, in order: (1) add
-`OPENAI_API_KEY`/`ANTHROPIC_API_KEY` to `.env` as available and use
-**Test Connection** in AI Configuration to confirm each model id still
-exists - correct `app/ai/model_registry.py` if not, the same way the Gemini
-entry was just corrected; (2) retry a real Gemini extraction/generation run
-now that the schema bug is fixed, to finally get a live read on *generation
-quality* (not just plumbing), which no amount of automated testing in this
+The user has an OpenAI key to add manually. Recommended next actions, in
+order: (1) add `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` to `.env`, and/or
+install Ollama + `ollama pull llama3.2`, then use **Test Connection** in AI
+Configuration for each - correct `app/ai/model_registry.py`'s model ids if
+any come back wrong, the same way the Gemini entry was corrected; (2) retry
+a real generation run now that both the schema bug and failover are in
+place, to finally get a live read on *generation quality* (not just
+plumbing/resilience), which no amount of automated testing in this
 environment can substitute for. Nothing has been committed to git by this
 session - review the working tree and commit when ready.
